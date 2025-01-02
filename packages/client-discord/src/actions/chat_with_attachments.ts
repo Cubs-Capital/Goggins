@@ -14,6 +14,8 @@ import {
     State,
 } from "@elizaos/core";
 import * as fs from "fs";
+import * as path from "path";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 export const summarizationTemplate = `# Summarized so far (we are adding to this)
 {{currentSummary}}
@@ -157,7 +159,7 @@ const summarizeAction = {
 
         const { objective, attachmentIds } = attachmentData;
 
-        // This is pretty gross but it can catch cases where the returned generated UUID is stupidly wrong for some reason
+        // Improve the attachment filtering logic
         const attachments = state.recentMessagesData
             .filter(
                 (msg) =>
@@ -165,20 +167,19 @@ const summarizeAction = {
                     msg.content.attachments.length > 0
             )
             .flatMap((msg) => msg.content.attachments)
-            // check by first 5 characters of uuid
-            .filter(
-                (attachment) =>
-                    attachmentIds
-                        .map((attch) => attch.toLowerCase().slice(0, 5))
-                        .includes(attachment.id.toLowerCase().slice(0, 5)) ||
-                    // or check the other way
-                    attachmentIds.some((id) => {
-                        const attachmentId = id.toLowerCase().slice(0, 5);
-                        return attachment.id
-                            .toLowerCase()
-                            .includes(attachmentId);
-                    })
-            );
+            .filter((attachment) => {
+                if (!attachment?.id) return false;
+
+                return attachmentIds.some(attId => {
+                    if (!attId) return false;
+                    const normalizedAttId = attId.toLowerCase();
+                    const normalizedId = attachment.id.toLowerCase();
+
+                    // Check if either ID contains the other
+                    return normalizedId.includes(normalizedAttId) ||
+                           normalizedAttId.includes(normalizedId);
+                });
+            });
 
         const attachmentsWithText = attachments
             .map((attachment) => `# ${attachment.title}\n${attachment.text}`)
@@ -230,39 +231,19 @@ ${currentSummary.trim()}
 `;
             await callback(callbackData);
         } else if (currentSummary.trim()) {
-            const summaryFilename = `content/summary_${Date.now()}.md`;
-
-            try {
-                // Debug: Log before file operations
-                console.log("Creating summary file:", {
-                    filename: summaryFilename,
-                    summaryLength: currentSummary.length,
-                });
-
-                // Write file directly first
-                await fs.promises.writeFile(
-                    summaryFilename,
-                    currentSummary,
-                    "utf8"
-                );
-                console.log("File written successfully");
-
-                // Then cache it
-                await runtime.cacheManager.set(summaryFilename, currentSummary);
-                console.log("Cache set operation completed");
-
-                await callback(
-                    {
-                        ...callbackData,
-                        text: `I've attached the summary of the requested attachments as a text file.`,
-                    },
-                    [summaryFilename]
-                );
-                console.log("Callback completed with summary file");
-            } catch (error) {
-                console.error("Error in file/cache process:", error);
-                throw error;
-            }
+            await callback(
+                {
+                    ...callbackData,
+                    text: "Here's the summary of the requested attachments:",
+                    attachments: [{
+                        url: null,
+                        id: `summary_${Date.now()}`,
+                        text: currentSummary,
+                        title: "Summary",
+                        type: 'text/markdown'
+                    }]
+                }
+            );
         } else {
             console.warn(
                 "Empty response from chat with attachments action, skipping"

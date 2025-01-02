@@ -15,9 +15,13 @@ export interface KeypairResult {
  * @returns KeypairResult containing either keypair or public key
  */
 export async function getWalletKey(
-    runtime: IAgentRuntime,
+    runtime: IAgentRuntime | undefined,
     requirePrivateKey: boolean = true
 ): Promise<KeypairResult> {
+    if (!runtime) {
+        throw new Error('Runtime is required for getWalletKey');
+    }
+
     const teeMode = runtime.getSetting("TEE_MODE") || TEEMode.OFF;
 
     if (teeMode !== TEEMode.OFF) {

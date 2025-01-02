@@ -247,8 +247,18 @@ const summarizeAction = {
 
         let currentSummary = "";
 
-        const model = models[runtime.character.settings.model];
-        const chunkSize = model.settings.maxContextLength - 1000;
+        console.log("Runtime character settings:", runtime.character?.settings);
+        console.log("Available models:", Object.keys(models));
+
+        const model = runtime.character?.settings?.model
+            ? models[runtime.character.settings.model]
+            : models["gpt-4o"];
+
+        console.log("Selected model:", model);
+
+        const chunkSize = model?.settings?.maxContextLength
+            ? model.settings.maxContextLength - 1000
+            : 6000; // Provide a default chunk size
 
         const chunks = await splitChunks(formattedMemories, chunkSize, 0);
 

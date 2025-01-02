@@ -67,7 +67,7 @@ const webSearch: Action = {
         const webSearchPrompt = message.content.text;
         elizaLogger.log("web search prompt received:", webSearchPrompt);
 
-        elizaLogger.log("Generating image with prompt:", webSearchPrompt);
+        elizaLogger.log("Generating search results with prompt:", webSearchPrompt);
         const searchResponse = await generateWebSearch(
             webSearchPrompt,
             runtime

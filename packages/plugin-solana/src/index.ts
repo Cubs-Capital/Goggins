@@ -29,7 +29,7 @@ export const solanaPlugin: Plugin = {
         executeSwapForDAO,
         take_order,
     ],
-    evaluators: [trustEvaluator],
+    evaluators: [],
     providers: [walletProvider, trustScoreProvider],
 };
 
