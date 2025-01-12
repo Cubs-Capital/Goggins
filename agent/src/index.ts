@@ -1,6 +1,6 @@
 import { PostgresDatabaseAdapter } from "@elizaos/adapter-postgres";
 import { SqliteDatabaseAdapter } from "@elizaos/adapter-sqlite";
-import { AutoClientInterface } from "@elizaos/client-auto";
+import { AutoClient, AutoClientInterface } from "@elizaos/client-auto";
 import { DiscordClientInterface } from "@elizaos/client-discord";
 import { FarcasterAgentClient } from "@elizaos/client-farcaster";
 import { LensAgentClient } from "@elizaos/client-lens";
@@ -31,8 +31,12 @@ import { RedisClient } from "@elizaos/adapter-redis";
 import { zgPlugin } from "@elizaos/plugin-0g";
 import { bootstrapPlugin } from "@elizaos/plugin-bootstrap";
 import createGoatPlugin from "@elizaos/plugin-goat";
+import broadcastPlugin from "@elizaos/plugin-broadcast";
+import { fetchProfilesAction } from "@elizaos/plugin-broadcast";
+import { apiCallAction } from "@elizaos/plugin-broadcast";
+
 // import { intifacePlugin } from "@elizaos/plugin-intiface";
-import { DirectClient } from "@elizaos/client-direct";
+import DirectClientInterface, { DirectClient } from "@elizaos/client-direct";
 import { aptosPlugin } from "@elizaos/plugin-aptos";
 import {
     advancedTradePlugin,
@@ -42,7 +46,6 @@ import {
     tradePlugin,
     webhookPlugin,
 } from "@elizaos/plugin-coinbase";
-import { webSearchPlugin } from "@elizaos/plugin-web-search";
 import { confluxPlugin } from "@elizaos/plugin-conflux";
 import { evmPlugin } from "@elizaos/plugin-evm";
 import { storyPlugin } from "@elizaos/plugin-story";
@@ -355,32 +358,28 @@ export function getTokenForProvider(
 }
 
 function initializeDatabase(dataDir: string) {
-    if (process.env.POSTGRES_URL) {
-        elizaLogger.info("Initializing PostgreSQL connection...");
-        const db = new PostgresDatabaseAdapter({
-            connectionString: process.env.POSTGRES_URL,
-            parseInputs: true,
+    elizaLogger.info("Initializing PostgreSQL connection...");
+    const db = new PostgresDatabaseAdapter({
+        host: 'localhost',
+        port: 5432,
+        user: 'eliza',
+        password: 'elizaai16',
+        database: 'mydb',
+        parseInputs: true,
+        max: 20,
+        idleTimeoutMillis: 30000
+    });
+
+    // Test the connection
+    db.init()
+        .then(() => {
+            elizaLogger.success("Successfully connected to PostgreSQL database");
+        })
+        .catch((error) => {
+            elizaLogger.error("Failed to connect to PostgreSQL:", error);
         });
 
-        // Test the connection
-        db.init()
-            .then(() => {
-                elizaLogger.success(
-                    "Successfully connected to PostgreSQL database"
-                );
-            })
-            .catch((error) => {
-                elizaLogger.error("Failed to connect to PostgreSQL:", error);
-            });
-
-        return db;
-    } else {
-        const filePath =
-            process.env.SQLITE_FILE ?? path.resolve(dataDir, "db.sqlite");
-        // ":memory:";
-        const db = new SqliteDatabaseAdapter(new Database(filePath));
-        return db;
-    }
+    return db;
 }
 
 // also adds plugins from character file into the runtime
@@ -521,7 +520,13 @@ export async function createAgent(
         character,
         // character.plugins are handled when clients are added
         plugins: [
+            // auto client
+            AutoClientInterface,
+            AutoClient,
+            DirectClientInterface,
+            DirectClient,
             bootstrapPlugin,
+            broadcastPlugin,
             getSecret(character, "CONFLUX_CORE_PRIVATE_KEY")
                 ? confluxPlugin
                 : null,
@@ -597,7 +602,16 @@ export async function createAgent(
             getSecret(character, "TON_PRIVATE_KEY") ? tonPlugin : null,
             getSecret(character, "SUI_PRIVATE_KEY") ? suiPlugin : null,
             getSecret(character, "STORY_PRIVATE_KEY") ? storyPlugin : null,
-            getSecret(character, "TAVILY_API_KEY") ? webSearchPlugin : null,
+            getSecret(character, "FUEL_PRIVATE_KEY") ? fuelPlugin : null,
+            getSecret(character, "AVALANCHE_PRIVATE_KEY")
+                ? avalanchePlugin
+                : null,
+            getSecret(character, "VECTOR_AUTH_TOKEN") || getSecret(character, "AUTH_TOKEN")
+                ? broadcastPlugin
+                : null,
+            getSecret(character, "GRAPHQL_API_KEY")
+                ? broadcastPlugin
+                : null,
         ].filter(Boolean),
         providers: [],
         actions: [],
